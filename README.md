@@ -49,7 +49,7 @@ any C++ code.
       - [Request Cancellation Handling](#request-cancellation-handling)
       - [Decoupled mode](#decoupled-mode)
         - [Use Cases](#use-cases)
-        - [Known Issues](#known-issues)
+        - [Async Execute](#async-execute)
       - [Request Rescheduling](#request-rescheduling)
     - [`finalize`](#finalize)
   - [Model Config File](#model-config-file)
@@ -90,6 +90,7 @@ any C++ code.
   - [Custom Metrics](#custom-metrics-1)
 - [Running with Inferentia](#running-with-inferentia)
 - [Logging](#logging)
+- [Development with VSCode](#development-with-vscode)
 - [Reporting problems, asking questions](#reporting-problems-asking-questions)
 
 ## Quick Start
@@ -620,9 +621,24 @@ full power of what can be achieved from decoupled API. Read
 [Decoupled Backends and Models](https://github.com/triton-inference-server/server/blob/main/docs/user_guide/decoupled_models.md)
 for more details on how to host a decoupled model.
 
-##### Known Issues
+##### Async Execute
 
-* Currently, decoupled Python models can not make async infer requests.
+Starting from 24.04, `async def execute(self, requests):` is supported for
+decoupled Python models. Its coroutine will be executed by an AsyncIO event loop
+shared with requests executing in the same model instance. The next request for
+the model instance can start executing while the current request is waiting.
+
+This is useful for minimizing the number of model instances for models that
+spend the majority of its time waiting, given requests can be executed
+concurrently by AsyncIO. To take full advantage of the concurrency, it is vital
+for the async execute function to not block the event loop from making progress
+while it is waiting, i.e. downloading over the network.
+
+Notes:
+* The model should not modify the running event loop, as this might cause
+unexpected issues.
+* The server/backend do not control how many requests are added to the event
+loop by a model instance.
 
 #### Request Rescheduling
 
@@ -1810,6 +1826,17 @@ def initialize(self, args):
     # Should print {'custom_key': {'string_value': 'custom_value'}}
 ```
 
+# Development with VSCode
+
+The repository includes a `.devcontainer` folder that contains a `Dockerfile`
+and `devcontainer.json` file to help you develop the Python backend
+using
+[Visual Studio Code](https://code.visualstudio.com/docs/devcontainers/containers).
+
+In order to build the backend, you can execute the "Build Python Backend" task in the
+[VSCode tasks](https://code.visualstudio.com/docs/editor/tasks). This will build
+the Python backend and install the artifacts in
+`/opt/tritonserver/backends/python`.
 
 
 # Reporting problems, asking questions
