@@ -246,6 +246,9 @@ Stub::RunCommand()
     ipc_message = this->PopMessage();
   }
   switch (ipc_message->Command()) {
+    case PYTHONSTUB_CommandType::PYTHONSTUB_CheckCorrid: {
+      CheckCorrid();
+    } break;
     case PYTHONSTUB_CommandType::PYTHONSTUB_AutoCompleteRequest: {
       // Only run this case when auto complete was requested by
       // Triton core.
@@ -719,6 +722,13 @@ Stub::ProcessRequestsDecoupled(RequestBatch* request_batch_shm_ptr)
     response_batch_shm_ptr->error = error_string_shm->ShmHandle();
     response_batch_shm_ptr->is_error_set = true;
   }
+}
+
+void Stub::CheckCorrid(){
+  if(py::hasattr(model_instance_, "check_corrid")){
+    model_instance_.attr("check_corrid")();
+  }
+  return;
 }
 
 void

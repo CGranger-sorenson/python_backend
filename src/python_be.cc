@@ -37,6 +37,24 @@ namespace triton { namespace backend { namespace python {
 
 namespace bi = boost::interprocess;
 
+void ModelInstanceState::ReaperThread(){
+  // wait for stub to fully load
+  while (!IsStubProcessAlive()){}
+
+  while (true){
+    std::this_thread::sleep_for(std::chrono::milliseconds(30000));
+
+    // Check that we still have a valid stub
+    if (!reaper_thread_exit){
+      SendMessageToStub(ipc_message->ShmHandle());
+    }
+    // if stub is invalid just return
+    else{
+      break;
+    }
+  }
+}
+
 ModelInstanceState::ModelInstanceState(
     ModelState* model_state, TRITONBACKEND_ModelInstance* triton_model_instance)
     : BackendModelInstance(model_state, triton_model_instance),
@@ -456,6 +474,13 @@ ModelInstanceState::LaunchStubProcess()
   }
   request_executor_ = std::make_unique<RequestExecutor>(
       Stub()->ShmPool(), model_state->TritonServer());
+  
+  // Save this object so it doesnt get deleted before the stub MQ can access it
+  ipc_message = IPCMessage::Create(Stub()->ShmPool(), false);
+  ipc_message->Command() = PYTHONSTUB_CommandType::PYTHONSTUB_CheckCorrid;
+
+  // Launch reaper thread after stub creation
+  reaper_thread_ = new std::thread([this]() { this->ReaperThread(); });
 
   return nullptr;
 }
@@ -1871,6 +1896,10 @@ ModelInstanceState::ShareCUDAMemoryPool(const int32_t device_id)
 
 ModelInstanceState::~ModelInstanceState()
 {
+  // Allow reaper thread to exit first so we don't run into issues on close
+  reaper_thread_exit = true;
+  ipc_message.reset();
+
   ModelState* model_state = reinterpret_cast<ModelState*>(Model());
   Stub()->UpdateHealth();
   if (Stub()->IsHealthy()) {
@@ -1891,6 +1920,10 @@ ModelInstanceState::~ModelInstanceState()
   Stub()->ClearQueues();
   received_message_.reset();
   Stub().reset();
+
+  // join last so we don't block closing
+  reaper_thread_->join();
+  delete reaper_thread_;
 }
 
 TRITONSERVER_Error*

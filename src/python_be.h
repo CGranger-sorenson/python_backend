@@ -297,6 +297,9 @@ class ModelInstanceState : public BackendModelInstance {
   std::unique_ptr<boost::asio::thread_pool> thread_pool_;
   std::unordered_map<intptr_t, std::shared_ptr<InferPayload>> infer_payload_;
   std::unique_ptr<RequestExecutor> request_executor_;
+  std::thread* reaper_thread_;
+  std::shared_ptr<IPCMessage> ipc_message;
+  bool reaper_thread_exit = false;
 
  public:
   static TRITONSERVER_Error* Create(
@@ -321,6 +324,8 @@ class ModelInstanceState : public BackendModelInstance {
       bi::managed_external_buffer::handle_t& response, bool& restart,
       std::shared_ptr<std::vector<TRITONBACKEND_Response*>>& responses,
       TRITONBACKEND_Request** requests, const uint32_t request_count);
+
+  void ReaperThread();
 
   // Responds to all the requests with an error message.
   void RespondErrorToAllRequests(
