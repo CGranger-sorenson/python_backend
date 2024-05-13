@@ -253,8 +253,6 @@ class Stub {
   /// Execute a batch of requests.
   void ProcessRequests(RequestBatch* request_batch_shm_ptr);
 
-  void CheckCorrid();
-
   void ProcessRequestsDecoupled(RequestBatch* request_batch_shm_ptr);
 
   py::object GetAsyncEventLoop();
