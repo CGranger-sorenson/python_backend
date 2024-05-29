@@ -301,6 +301,7 @@ class ModelInstanceState : public BackendModelInstance {
   std::thread* reaper_thread_;
   std::shared_ptr<IPCMessage> ipc_message;
   bool reaper_thread_exit = false;
+  std::mutex reaper_thread_mu_;
 
  public:
   static TRITONSERVER_Error* Create(

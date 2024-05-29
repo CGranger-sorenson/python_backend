@@ -46,6 +46,7 @@ void ModelInstanceState::ReaperThread(){
 
     // Check that we still have a valid stub
     if (!reaper_thread_exit){
+      const std::lock_guard<std::mutex> lock(reaper_thread_mu_);
       SendMessageToStub(ipc_message->ShmHandle());
     }
     // if stub is invalid just return
@@ -1336,6 +1337,7 @@ ModelInstanceState::ProcessRequestsDecoupled(
     std::vector<std::unique_ptr<InferRequest>>& pb_infer_requests,
     PbMetricReporter& reporter)
 {
+  const std::lock_guard<std::mutex> lock(reaper_thread_mu_);
   NVTX_RANGE(nvtx_, "ProcessRequests " + Name());
   closed_requests_ = {};
   ModelState* model_state = reinterpret_cast<ModelState*>(Model());
@@ -1413,6 +1415,7 @@ ModelInstanceState::ProcessRequests(
     std::vector<std::unique_ptr<InferRequest>>& pb_infer_requests,
     bool& restart)
 {
+  const std::lock_guard<std::mutex> lock(reaper_thread_mu_);
   NVTX_RANGE(nvtx_, "ProcessRequests " + Name());
   ModelState* model_state = reinterpret_cast<ModelState*>(Model());
   std::string name = model_state->Name();
