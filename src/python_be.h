@@ -250,6 +250,10 @@ class ModelState : public BackendModel {
   // Set decoupled mode
   void SetDecoupled(bool decoupled) { decoupled_ = decoupled; }
 
+  void SetTimeout(uint64_t timeout) { timeout_ = timeout; }
+
+  uint64_t GetTimeout() { return timeout_; } 
+
   // Returns the value in the `runtime_modeldir_` field
   std::string RuntimeModelDir() { return runtime_modeldir_; }
 
@@ -272,6 +276,7 @@ class ModelState : public BackendModel {
   std::string python_execution_env_;
   bool force_cpu_only_input_tensors_;
   bool decoupled_;
+  uint64_t timeout_;
   std::string runtime_modeldir_;
   std::unique_ptr<StubLauncher> auto_complete_stub_;
 };
@@ -302,6 +307,7 @@ class ModelInstanceState : public BackendModelInstance {
   std::shared_ptr<IPCMessage> ipc_message;
   bool reaper_thread_exit = false;
   std::mutex reaper_thread_mu_;
+  std::chrono::microseconds sleep_time = std::chrono::microseconds(0);
 
  public:
   static TRITONSERVER_Error* Create(

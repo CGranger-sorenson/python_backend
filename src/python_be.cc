@@ -41,17 +41,17 @@ void ModelInstanceState::ReaperThread(){
   // wait for stub to fully load
   while (!IsStubProcessAlive()){}
 
-  while (true){
-    std::this_thread::sleep_for(std::chrono::milliseconds(30000));
+  while (!reaper_thread_exit){
+    std::this_thread::sleep_for(sleep_time);
 
     // Check that we still have a valid stub
     if (!reaper_thread_exit){
       const std::lock_guard<std::mutex> lock(reaper_thread_mu_);
-      SendMessageToStub(ipc_message->ShmHandle());
+      Stub()->StubMessageQueue()->Push(ipc_message->ShmHandle());
     }
     // if stub is invalid just return
     else{
-      break;
+      return;
     }
   }
 }
@@ -457,6 +457,7 @@ TRITONSERVER_Error*
 ModelInstanceState::LaunchStubProcess()
 {
   ModelState* model_state = reinterpret_cast<ModelState*>(Model());
+  sleep_time = std::chrono::microseconds(30000000);
   Stub() = std::make_unique<StubLauncher>(
       "MODEL_INSTANCE_STUB", Name(), DeviceId(),
       TRITONSERVER_InstanceGroupKindString(Kind()));
@@ -2112,6 +2113,20 @@ ModelState::SetModelConfig()
         throw BackendModelException(error);
       }
       SetDecoupled(is_decoupled);
+    }
+  }
+
+  triton::common::TritonJson::Value sequence_batching_conf;
+  uint64_t timeout = 0;
+  if (ModelConfig().Find(
+            "sequence_batching", &sequence_batching_conf)) {
+    triton::common::TritonJson::Value max_sequence_idle_microseconds;
+    if (sequence_batching_conf.Find("max_sequence_idle_microseconds",&max_sequence_idle_microseconds)) {
+      auto error = max_sequence_idle_microseconds.AsUInt(&timeout);
+      if (error != nullptr){
+        throw BackendModelException(error);
+      }
+      SetTimeout(timeout);
     }
   }
 
