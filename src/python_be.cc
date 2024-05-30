@@ -457,7 +457,8 @@ TRITONSERVER_Error*
 ModelInstanceState::LaunchStubProcess()
 {
   ModelState* model_state = reinterpret_cast<ModelState*>(Model());
-  sleep_time = std::chrono::microseconds(30000000);
+  timeout = model_state->GetTimeout();
+  sleep_time = std::chrono::microseconds(timeout);
   Stub() = std::make_unique<StubLauncher>(
       "MODEL_INSTANCE_STUB", Name(), DeviceId(),
       TRITONSERVER_InstanceGroupKindString(Kind()));
@@ -476,13 +477,16 @@ ModelInstanceState::LaunchStubProcess()
   }
   request_executor_ = std::make_unique<RequestExecutor>(
       Stub()->ShmPool(), model_state->TritonServer());
-  
-  // Save this object so it doesnt get deleted before the stub MQ can access it
-  ipc_message = IPCMessage::Create(Stub()->ShmPool(), false);
-  ipc_message->Command() = PYTHONSTUB_CommandType::PYTHONSTUB_CheckCorrid;
 
-  // Launch reaper thread after stub creation
-  reaper_thread_ = new std::thread([this]() { this->ReaperThread(); });
+  // don't launch the thread if the timeout is 0
+  if (timeout > 0){
+    // Save this object so it doesnt get deleted before the stub MQ can access it
+    ipc_message = IPCMessage::Create(Stub()->ShmPool(), false);
+    ipc_message->Command() = PYTHONSTUB_CommandType::PYTHONSTUB_CheckCorrid;
+
+    // Launch reaper thread after stub creation
+    reaper_thread_ = new std::thread([this]() { this->ReaperThread(); });
+  }
 
   return nullptr;
 }
@@ -1902,9 +1906,12 @@ ModelInstanceState::ShareCUDAMemoryPool(const int32_t device_id)
 
 ModelInstanceState::~ModelInstanceState()
 {
-  // Allow reaper thread to exit first so we don't run into issues on close
-  reaper_thread_exit = true;
-  ipc_message.reset();
+  // the reaper thread was never created if timeout <= 0
+  if (timeout > 0){
+    // Allow reaper thread to exit first so we don't run into issues on close
+    reaper_thread_exit = true;
+    ipc_message.reset();
+  }
 
   ModelState* model_state = reinterpret_cast<ModelState*>(Model());
   Stub()->UpdateHealth();
@@ -1927,9 +1934,11 @@ ModelInstanceState::~ModelInstanceState()
   received_message_.reset();
   Stub().reset();
 
+  if (timeout > 0){
   // join last so we don't block closing
-  reaper_thread_->join();
-  delete reaper_thread_;
+    reaper_thread_->join();
+    delete reaper_thread_;
+  }
 }
 
 TRITONSERVER_Error*

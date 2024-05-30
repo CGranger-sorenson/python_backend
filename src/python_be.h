@@ -308,6 +308,7 @@ class ModelInstanceState : public BackendModelInstance {
   bool reaper_thread_exit = false;
   std::mutex reaper_thread_mu_;
   std::chrono::microseconds sleep_time = std::chrono::microseconds(0);
+  uint32_t timeout = 0;
 
  public:
   static TRITONSERVER_Error* Create(
