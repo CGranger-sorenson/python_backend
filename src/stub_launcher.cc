@@ -243,7 +243,7 @@ StubLauncher::Launch()
   ss << python_backend_stub << " " << model_path_ << " " << shm_region_name_
      << " " << shm_default_byte_size_ << " " << shm_growth_byte_size_ << " "
      << parent_pid_ << " " << python_lib_ << " " << ipc_control_handle_ << " "
-     << stub_name << " " << runtime_modeldir_;
+     << stub_name << " " << runtime_modeldir_ << " " << timeout_;
   launch_command = ss.str();
 
   LOG_MESSAGE(
@@ -370,7 +370,7 @@ StubLauncher::Launch()
        << " " << shm_region_name_ << " " << shm_default_byte_size_ << " "
        << shm_growth_byte_size_ << " " << parent_pid_ << " " << python_lib_
        << " " << ipc_control_handle_ << " " << stub_name << " "
-       << runtime_modeldir_;
+       << runtime_modeldir_ << " " << timeout_;
     ipc_control_->uses_env = true;
     bash_argument = ss.str();
   } else {
@@ -379,7 +379,7 @@ StubLauncher::Launch()
        << shm_region_name_ << " " << shm_default_byte_size_ << " "
        << shm_growth_byte_size_ << " " << parent_pid_ << " " << python_lib_
        << " " << ipc_control_handle_ << " " << stub_name << " "
-       << runtime_modeldir_;
+       << runtime_modeldir_ << " " << timeout_;
     bash_argument = ss.str();
   }
   LOG_MESSAGE(

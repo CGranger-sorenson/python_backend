@@ -152,6 +152,8 @@ class StubLauncher {
   // Wait for stub process
   void WaitForStubProcess();
 
+  void SetTimeout(uint64_t timeout) { timeout_ = timeout; }
+
 #ifndef _WIN32
   // FIXME [DLIS-5969]: Enable for Windows when custom execution environments
   // are supported.
@@ -213,6 +215,7 @@ class StubLauncher {
       ipc_control_;
   bi::managed_external_buffer::handle_t ipc_control_handle_;
   std::unique_ptr<SharedMemoryManager> shm_pool_;
+  uint64_t timeout_ = 0;
 #ifdef TRITON_ENABLE_GPU
   std::mutex cuda_shm_pool_mutex_;
   std::unordered_map<int32_t, bool> tried_sharing_cuda_pool_map_;

@@ -356,6 +356,8 @@ class Stub {
   /// Get the CUDA memory pool address from the parent process.
   void GetCUDAMemoryPoolAddress(std::unique_ptr<IPCMessage>& ipc_message);
 
+  void SetTimeout(uint64_t timeout) { timeout_ = std::chrono::microseconds(timeout); }
+
  private:
   bi::interprocess_mutex* stub_mutex_;
   bi::interprocess_condition* stub_cond_;
@@ -395,6 +397,9 @@ class Stub {
       response_iterator_map_;
   std::mutex dlpack_proxy_stream_pool_mu_;
   std::unordered_map<int, cudaStream_t> dlpack_proxy_stream_pool_;
+  std::chrono::microseconds timeout_;
+  std::unordered_map<std::string, std::chrono::time_point<std::chrono::system_clock>> string_corrid_map;
+  std::unordered_map<uint64_t, std::chrono::time_point<std::chrono::system_clock>> int_corrid_map;
 };
 
 template <typename MessageType>

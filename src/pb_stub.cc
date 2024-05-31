@@ -689,6 +689,17 @@ Stub::ProcessRequestsDecoupled(RequestBatch* request_batch_shm_ptr)
 {
   py::list py_request_list =
       LoadRequestsFromSharedMemory(request_batch_shm_ptr);
+
+  for (auto& req : py_request_list){
+    std::shared_ptr<InferRequest> request = py::cast<std::shared_ptr<InferRequest>>(req);
+    CorrelationId corrid = request->GetCorrelationId();
+    if (corrid.Type() == CorrelationIdDataType::STRING){
+      string_corrid_map[corrid.StringValue()] = std::chrono::system_clock::now();
+    }
+    else{
+      int_corrid_map[corrid.UnsignedIntValue()] = std::chrono::system_clock::now();
+    }
+  }
   std::unique_ptr<IPCMessage> execute_response =
       IPCMessage::Create(shm_pool_, false /* Inline response */);
   execute_response->Command() = PYTHONSTUB_ExecuteResponse;
@@ -760,8 +771,30 @@ Stub::ProcessRequestsDecoupled(RequestBatch* request_batch_shm_ptr)
 }
 
 void Stub::CheckCorrid(){
+  py::list corrids;
+  if(string_corrid_map.size() > 0){
+    for (auto& b : string_corrid_map){
+      if (std::chrono::system_clock::now() - b.second >= timeout_){
+        corrids.append(b.first);
+      }
+    }
+    for (auto& s : corrids){
+      string_corrid_map.erase(py::cast<std::string>(s));
+    }
+  }
+  else{
+    for (auto& b : int_corrid_map){
+      if (std::chrono::system_clock::now() - b.second >= timeout_){
+        corrids.append(b.first);
+      }
+    }
+    for (auto& i : corrids){
+      int_corrid_map.erase(py::cast<uint64_t>(i));
+    }
+  }
+  
   if(py::hasattr(model_instance_, "check_corrid")){
-    model_instance_.attr("check_corrid")();
+    model_instance_.attr("check_corrid")(corrids);
   }
   return;
 }
@@ -810,6 +843,16 @@ Stub::ProcessRequests(RequestBatch* request_batch_shm_ptr)
 
     py::list py_request_list =
         LoadRequestsFromSharedMemory(request_batch_shm_ptr);
+    for (auto& req : py_request_list){
+    std::shared_ptr<InferRequest> request = py::cast<std::shared_ptr<InferRequest>>(req);
+    CorrelationId corrid = request->GetCorrelationId();
+    if (corrid.Type() == CorrelationIdDataType::STRING){
+      string_corrid_map[corrid.StringValue()] = std::chrono::system_clock::now();
+    }
+    else{
+      int_corrid_map[corrid.UnsignedIntValue()] = std::chrono::system_clock::now();
+    }
+  }
 
     if (!py::hasattr(model_instance_, "execute")) {
       std::string message = "Python model " + model_context_.PythonModelPath() +
@@ -2041,8 +2084,8 @@ int
 main(int argc, char** argv)
 {
   std::unique_ptr<Logger>& logger = Logger::GetOrCreateInstance();
-  if (argc < 9) {
-    LOG_INFO << "Expected 9 arguments, found " << argc << " arguments.";
+  if (argc < 10) {
+    LOG_INFO << "Expected 10 arguments, found " << argc << " arguments.";
     logger.reset();
     exit(1);
   }
@@ -2053,6 +2096,7 @@ main(int argc, char** argv)
   std::string model_path = argv[1];
   std::string shm_region_name = argv[2];
   int64_t shm_default_size = std::stol(argv[3]);
+  uint64_t timeout = std::stol(argv[10]);
 
   std::vector<std::string> model_path_tokens;
 
@@ -2081,6 +2125,7 @@ main(int argc, char** argv)
   std::string runtime_modeldir = argv[9];
 
   std::unique_ptr<Stub>& stub = Stub::GetOrCreateInstance();
+  stub->SetTimeout(timeout);
   try {
     stub->Instantiate(
         shm_growth_size, shm_default_size, shm_region_name, model_path,

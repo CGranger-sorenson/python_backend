@@ -457,11 +457,12 @@ TRITONSERVER_Error*
 ModelInstanceState::LaunchStubProcess()
 {
   ModelState* model_state = reinterpret_cast<ModelState*>(Model());
-  timeout = model_state->GetTimeout();
-  sleep_time = std::chrono::microseconds(timeout);
+  reaper_thread_enabled = (model_state->GetTimeout() > 0);
+  sleep_time = std::chrono::microseconds(model_state->GetTimeout());
   Stub() = std::make_unique<StubLauncher>(
       "MODEL_INSTANCE_STUB", Name(), DeviceId(),
       TRITONSERVER_InstanceGroupKindString(Kind()));
+  Stub()->SetTimeout(model_state->GetTimeout());
   RETURN_IF_ERROR(Stub()->Initialize(model_state));
   RETURN_IF_ERROR(Stub()->Setup());
   StartMonitor();
@@ -479,7 +480,7 @@ ModelInstanceState::LaunchStubProcess()
       Stub()->ShmPool(), model_state->TritonServer());
 
   // don't launch the thread if the timeout is 0
-  if (timeout > 0){
+  if (reaper_thread_enabled){
     // Save this object so it doesnt get deleted before the stub MQ can access it
     ipc_message = IPCMessage::Create(Stub()->ShmPool(), false);
     ipc_message->Command() = PYTHONSTUB_CommandType::PYTHONSTUB_CheckCorrid;
@@ -1907,7 +1908,7 @@ ModelInstanceState::ShareCUDAMemoryPool(const int32_t device_id)
 ModelInstanceState::~ModelInstanceState()
 {
   // the reaper thread was never created if timeout <= 0
-  if (timeout > 0){
+  if (reaper_thread_enabled){
     // Allow reaper thread to exit first so we don't run into issues on close
     reaper_thread_exit = true;
     ipc_message.reset();
@@ -1934,7 +1935,7 @@ ModelInstanceState::~ModelInstanceState()
   received_message_.reset();
   Stub().reset();
 
-  if (timeout > 0){
+  if (reaper_thread_enabled){
   // join last so we don't block closing
     reaper_thread_->join();
     delete reaper_thread_;
@@ -2126,7 +2127,7 @@ ModelState::SetModelConfig()
   }
 
   triton::common::TritonJson::Value sequence_batching_conf;
-  uint64_t timeout = 0;
+  uint64_t timeout = 1000000;
   if (ModelConfig().Find(
             "sequence_batching", &sequence_batching_conf)) {
     triton::common::TritonJson::Value max_sequence_idle_microseconds;
